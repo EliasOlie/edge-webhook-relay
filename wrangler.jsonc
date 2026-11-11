@@ -1,0 +1,82 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "edge-webhook-relay",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+
+  // Replace database_id with the id printed by `wrangler d1 create webhook-relay`.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "webhook-relay",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "durable_objects": {
+    "bindings": [{ "name": "IDEMPOTENCY", "class_name": "IdempotencyGuard" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["IdempotencyGuard"] }],
+
+  "queues": {
+    "producers": [{ "binding": "DELIVERY_QUEUE", "queue": "webhook-deliveries" }],
+    "consumers": [
+      {
+        "queue": "webhook-deliveries",
+        "max_batch_size": 10,
+        "max_batch_timeout": 2,
+        // Must agree with the backoff: 8 retries with base 10s ~= 42 minutes before DLQ.
+        "max_retries": 8,
+        "dead_letter_queue": "webhook-deliveries-dlq"
+      },
+      { "queue": "webhook-deliveries-dlq", "max_batch_size": 10 }
+    ]
+  },
+
+  "vars": {
+    "DEAD_LETTER_QUEUE": "webhook-deliveries-dlq",
+    "MAX_BODY_BYTES": "262144",
+    "DEDUP_TTL_SECONDS": "604800",
+    "DELIVERY_TIMEOUT_MS": "10000",
+    "RETRY_BASE_SECONDS": "10",
+    "RETRY_MAX_SECONDS": "3600",
+
+    // Source name (used in the URL: POST /in/<name>) -> verifier + destination.
+    // "secret" / "verifyToken" are NAMES of Worker secrets, never the values.
+    "SOURCES": {
+      "whatsapp": {
+        "type": "whatsapp",
+        "destination": "https://bot.example.com/webhooks/whatsapp",
+        "secret": "WHATSAPP_APP_SECRET",
+        "verifyToken": "WHATSAPP_VERIFY_TOKEN"
+      },
+      "stripe": {
+        "type": "stripe",
+        "destination": "https://billing.example.com/webhooks/stripe",
+        "secret": "STRIPE_WEBHOOK_SECRET",
+        "toleranceSeconds": 300
+      },
+      "github": {
+        "type": "github",
+        "destination": "https://ci.example.com/webhooks/github",
+        "secret": "GITHUB_WEBHOOK_SECRET"
+      },
+      "acme": {
+        "type": "generic",
+        "destination": "https://app.example.com/webhooks/acme",
+        "secret": "ACME_WEBHOOK_SECRET",
+        "signatureHeader": "x-acme-signature",
+        "signaturePrefix": "sha256=",
+        "encoding": "hex",
+        "idempotencyHeader": "x-acme-delivery-id"
+      }
+    }
+  }
+
+  // Secrets (set with `wrangler secret put <NAME>`, locally in .dev.vars):
+  //   ADMIN_TOKEN, RELAY_SIGNING_SECRET,
+  //   WHATSAPP_APP_SECRET, WHATSAPP_VERIFY_TOKEN,
+  //   STRIPE_WEBHOOK_SECRET, GITHUB_WEBHOOK_SECRET, ACME_WEBHOOK_SECRET
+}

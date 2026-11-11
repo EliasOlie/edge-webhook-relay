@@ -1,0 +1,11 @@
+# Copy to .dev.vars for `wrangler dev`. Placeholders only - never commit real values.
+# In production set each one with: wrangler secret put <NAME>
+
+ADMIN_TOKEN=change-me-long-random-admin-token
+RELAY_SIGNING_SECRET=change-me-relay-signing-secret
+
+WHATSAPP_APP_SECRET=your-meta-app-secret
+WHATSAPP_VERIFY_TOKEN=your-chosen-verify-token
+STRIPE_WEBHOOK_SECRET=whsec_placeholder
+GITHUB_WEBHOOK_SECRET=your-github-webhook-secret
+ACME_WEBHOOK_SECRET=your-generic-hmac-secret
